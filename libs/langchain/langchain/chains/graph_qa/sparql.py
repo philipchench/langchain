@@ -38,8 +38,8 @@ class GraphSparqlQAChain(Chain):
 
     graph: RdfGraph = Field(exclude=True)
     sparql_generation_select_chain: LLMChain
-    sparql_generation_update_chain: LLMChain
-    sparql_intent_chain: LLMChain
+    # sparql_generation_update_chain: LLMChain
+    # sparql_intent_chain: LLMChain
     qa_chain: LLMChain
     return_sparql_query: bool = False
     input_key: str = "query"  #: :meta private:
@@ -70,21 +70,21 @@ class GraphSparqlQAChain(Chain):
         *,
         qa_prompt: BasePromptTemplate = SPARQL_QA_PROMPT,
         sparql_select_prompt: BasePromptTemplate = SPARQL_GENERATION_SELECT_PROMPT,
-        sparql_update_prompt: BasePromptTemplate = SPARQL_GENERATION_UPDATE_PROMPT,
-        sparql_intent_prompt: BasePromptTemplate = SPARQL_INTENT_PROMPT,
+        # sparql_update_prompt: BasePromptTemplate = SPARQL_GENERATION_UPDATE_PROMPT,
+        # sparql_intent_prompt: BasePromptTemplate = SPARQL_INTENT_PROMPT,
         **kwargs: Any,
     ) -> GraphSparqlQAChain:
         """Initialize from LLM."""
         qa_chain = LLMChain(llm=llm, prompt=qa_prompt)
         sparql_generation_select_chain = LLMChain(llm=llm, prompt=sparql_select_prompt)
-        sparql_generation_update_chain = LLMChain(llm=llm, prompt=sparql_update_prompt)
-        sparql_intent_chain = LLMChain(llm=llm, prompt=sparql_intent_prompt)
+        # sparql_generation_update_chain = LLMChain(llm=llm, prompt=sparql_update_prompt)
+        # sparql_intent_chain = LLMChain(llm=llm, prompt=sparql_intent_prompt)
 
         return cls(
             qa_chain=qa_chain,
             sparql_generation_select_chain=sparql_generation_select_chain,
-            sparql_generation_update_chain=sparql_generation_update_chain,
-            sparql_intent_chain=sparql_intent_chain,
+            # sparql_generation_update_chain=sparql_generation_update_chain,
+            # sparql_intent_chain=sparql_intent_chain,
             **kwargs,
         )
 
@@ -97,54 +97,73 @@ class GraphSparqlQAChain(Chain):
         Generate SPARQL query, use it to retrieve a response from the gdb and answer
         the question.
         """
+
+        print("Hi Shipcom")
+
         _run_manager = run_manager or CallbackManagerForChainRun.get_noop_manager()
         callbacks = _run_manager.get_child()
         prompt = inputs[self.input_key]
 
-        _intent = self.sparql_intent_chain.run({"prompt": prompt}, callbacks=callbacks)
-        intent = _intent.strip()
+        # _intent = self.sparql_intent_chain.run({"prompt": prompt}, callbacks=callbacks)
+        # intent = _intent.strip()
 
-        if "SELECT" in intent and "UPDATE" not in intent:
-            sparql_generation_chain = self.sparql_generation_select_chain
-            intent = "SELECT"
-        elif "UPDATE" in intent and "SELECT" not in intent:
-            sparql_generation_chain = self.sparql_generation_update_chain
-            intent = "UPDATE"
-        else:
-            raise ValueError(
-                "I am sorry, but this prompt seems to fit none of the currently "
-                "supported SPARQL query types, i.e., SELECT and UPDATE."
-            )
+        # if "SELECT" in intent and "UPDATE" not in intent:
+        #     sparql_generation_chain = self.sparql_generation_select_chain
+        #     intent = "SELECT"
+        # elif "UPDATE" in intent and "SELECT" not in intent:
+        #     sparql_generation_chain = self.sparql_generation_update_chain
+        #     intent = "UPDATE"
+        # else:
+        #     raise ValueError(
+        #         "I am sorry, but this prompt seems to fit none of the currently "
+        #         "supported SPARQL query types, i.e., SELECT and UPDATE."
+        #     )
 
-        _run_manager.on_text("Identified intent:", end="\n", verbose=self.verbose)
-        _run_manager.on_text(intent, color="green", end="\n", verbose=self.verbose)
+        # _run_manager.on_text("Identified intent:", end="\n", verbose=self.verbose)
+        # _run_manager.on_text(intent, color="green", end="\n", verbose=self.verbose)
 
-        generated_sparql = sparql_generation_chain.run(
+        print("Running sparql select chain:")
+
+        generated_sparql = self.sparql_generation_select_chain.run(
             {"prompt": prompt, "schema": self.graph.get_schema}, callbacks=callbacks
         )
+
+        print("Generated sparql: ", generated_sparql)
 
         _run_manager.on_text("Generated SPARQL:", end="\n", verbose=self.verbose)
         _run_manager.on_text(
             generated_sparql, color="green", end="\n", verbose=self.verbose
         )
 
-        if intent == "SELECT":
-            context = self.graph.query(generated_sparql)
+        # if intent == "SELECT":
+        #     context = self.graph.query(generated_sparql)
 
-            _run_manager.on_text("Full Context:", end="\n", verbose=self.verbose)
-            _run_manager.on_text(
-                str(context), color="green", end="\n", verbose=self.verbose
-            )
-            result = self.qa_chain(
-                {"prompt": prompt, "context": context},
-                callbacks=callbacks,
-            )
-            res = result[self.qa_chain.output_key]
-        elif intent == "UPDATE":
-            self.graph.update(generated_sparql)
-            res = "Successfully inserted triples into the graph."
-        else:
-            raise ValueError("Unsupported SPARQL query type.")
+        #     _run_manager.on_text("Full Context:", end="\n", verbose=self.verbose)
+        #     _run_manager.on_text(
+        #         str(context), color="green", end="\n", verbose=self.verbose
+        #     )
+        #     result = self.qa_chain(
+        #         {"prompt": prompt, "context": context},
+        #         callbacks=callbacks,
+        #     )
+        #     res = result[self.qa_chain.output_key]
+        # elif intent == "UPDATE":
+        #     self.graph.update(generated_sparql)
+        #     res = "Successfully inserted triples into the graph."
+        # else:
+        #     raise ValueError("Unsupported SPARQL query type.")
+
+        context = self.graph.query(generated_sparql)
+
+        _run_manager.on_text("Full Context:", end="\n", verbose=self.verbose)
+        _run_manager.on_text(
+            str(context), color="green", end="\n", verbose=self.verbose
+        )
+        result = self.qa_chain(
+            {"prompt": prompt, "context": context},
+            callbacks=callbacks,
+        )
+        res = result[self.qa_chain.output_key]
 
         chain_result: Dict[str, Any] = {self.output_key: res}
         if self.return_sparql_query:
