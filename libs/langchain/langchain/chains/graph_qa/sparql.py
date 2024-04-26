@@ -153,7 +153,14 @@ class GraphSparqlQAChain(Chain):
         # else:
         #     raise ValueError("Unsupported SPARQL query type.")
 
-        context = self.graph.query(generated_sparql)
+        context = self.graph.query("SELECT ?test\
+WHERE {\
+    ?subSystem rdf:type stardog:SubSystem .\
+    ?subSystem stardog:hasCommand ?command .\
+    ?command rdf:type stardog:Command .\
+    ?command stardog:requiresTest ?test .\
+    FILTER (?subSystem = stardog:OBOG)\
+}")
 
         print("query result (context): ", context)
 
