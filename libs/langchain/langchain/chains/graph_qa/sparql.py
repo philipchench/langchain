@@ -155,6 +155,8 @@ class GraphSparqlQAChain(Chain):
 
         context = self.graph.query(generated_sparql)
 
+        print("query result (context): ", context)
+
         _run_manager.on_text("Full Context:", end="\n", verbose=self.verbose)
         _run_manager.on_text(
             str(context), color="green", end="\n", verbose=self.verbose
